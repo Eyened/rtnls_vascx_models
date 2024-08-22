@@ -1,0 +1,6 @@
+*.pyc
+__pycache__
+*.egg-info
+*.zip
+/samples/fundus/*
+!/samples/fundus/original

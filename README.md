@@ -1,6 +1,8 @@
 ## VascX models
 
-This repo contains the Retinalysis models used in the VascX pipeline and instructions to extract 
+This repository contains the instructions for using the VascX models from the paper [VascX Models: Model Ensembles for Retinal Vascular Analysis from Color Fundus Images](https://arxiv.org/abs/2409.16016).
+
+The model weights are in [huggingface](https://huggingface.co/Eyened/vascx).
 
 ### Installation
 
@@ -9,8 +11,6 @@ To install the entire fundus analysis pipeline including fundus preprocessing, m
 1. Create a conda or virtualenv virtual environment, or otherwise ensure a clean environment.
 
 2. Install the [rtnls_inference package](https://github.com/Eyened/retinalysis-inference).
-
-3. Download the vascx models and place them in the folder pointed by `$RTNLS_MODEL_RELEASES`.
 
 ### Usage
 

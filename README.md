@@ -12,14 +12,11 @@ This repository contains the instructions for using the VascX models from the pa
 
 The model weights are in [huggingface](https://huggingface.co/Eyened/vascx).
 
-<img src="samples/fundus/rgb/CHASEDB1_12R.png" width="240" height="240">
-<img src="imgs/CHASEDB1_12R.png" width="240" height="240">
+<img src="imgs/CHASEDB1_12R_rgb.png" width="240" height="240"><img src="imgs/CHASEDB1_12R.png" width="240" height="240">
 
-<img src="samples/fundus/rgb/DRIVE_22.png" width="240" height="240">
-<img src="imgs/DRIVE_22.png" width="240" height="240">
+<img src="imgs/DRIVE_22_rgb.png" width="240" height="240"><img src="imgs/DRIVE_22.png" width="240" height="240">
 
-<img src="samples/fundus/rgb/HRF_04_g.png" width="240" height="240">
-<img src="imgs/HRF_04_g.png" width="240" height="240">
+<img src="imgs/HRF_04_g_rgb.png" width="240" height="240"><img src="imgs/HRF_04_g.png" width="240" height="240">
 
 ### Installation
 

@@ -6,7 +6,7 @@ tags:
 - biology
 ---
 
-## VascX models
+# VascX models
 
 This repository contains the instructions for using the VascX models from the paper [VascX Models: Model Ensembles for Retinal Vascular Analysis from Color Fundus Images](https://arxiv.org/abs/2409.16016).
 
@@ -18,7 +18,7 @@ The model weights are in [huggingface](https://huggingface.co/Eyened/vascx).
 
 <img src="imgs/HRF_04_g_rgb.png" width="240" height="240" style="display:inline"><img src="imgs/HRF_04_g.png" width="240" height="240" style="display:inline">
 
-### Installation
+## Installation
 
 To install the entire fundus analysis pipeline including fundus preprocessing, model inference code and vascular biomarker extraction:
 
@@ -26,7 +26,115 @@ To install the entire fundus analysis pipeline including fundus preprocessing, m
 
 2. Install the [rtnls_inference package](https://github.com/Eyened/retinalysis-inference).
 
+
+## `vascx run` Command
+
+The `run` command provides a comprehensive pipeline for processing fundus images, performing various analyses, and creating visualizations.
+
 ### Usage
+
+```bash
+vascx run DATA_PATH OUTPUT_PATH [OPTIONS]
+```
+
+### Arguments
+
+- `DATA_PATH`: Path to input data. Can be either:
+  - A directory containing fundus images
+  - A CSV file with a 'path' column containing paths to images
+
+- `OUTPUT_PATH`: Directory where processed results will be stored
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--preprocess/--no-preprocess` | `--preprocess` | Run preprocessing to standardize images for model input |
+| `--vessels/--no-vessels` | `--vessels` | Run vessel segmentation and artery-vein classification |
+| `--disc/--no-disc` | `--disc` | Run optic disc segmentation |
+| `--quality/--no-quality` | `--quality` | Run image quality assessment |
+| `--fovea/--no-fovea` | `--fovea` | Run fovea detection |
+| `--overlay/--no-overlay` | `--overlay` | Create visualization overlays combining all results |
+| `--n_jobs` | `4` | Number of preprocessing workers for parallel processing |
+
+### Output Structure
+
+When run with default options, the command creates the following structure in `OUTPUT_PATH`:
+
+```
+OUTPUT_PATH/
+├── preprocessed_rgb/     # Standardized fundus images
+├── vessels/              # Vessel segmentation results
+├── artery_vein/          # Artery-vein classification
+├── disc/                 # Optic disc segmentation
+├── overlays/             # Visualization images
+├── bounds.csv            # Image boundary information
+├── quality.csv           # Image quality scores
+└── fovea.csv             # Fovea coordinates
+```
+
+### Processing Stages
+
+1. **Preprocessing**: 
+   - Standardizes input images for consistent analysis
+   - Outputs preprocessed images and boundary information
+
+2. **Quality Assessment**:
+   - Evaluates image quality with three quality metrics (q1, q2, q3)
+   - Higher scores indicate better image quality
+
+3. **Vessel Segmentation and Artery-Vein Classification**:
+   - Identifies blood vessels in the retina
+   - Classifies vessels as arteries (1) or veins (2) with intersections (3)
+
+4. **Optic Disc Segmentation**:
+   - Identifies the optic disc location and boundaries
+
+5. **Fovea Detection**:
+   - Determines the coordinates of the fovea (center of vision)
+
+6. **Visualization Overlays**:
+   - Creates color-coded images showing:
+     - Arteries in red
+     - Veins in blue
+     - Optic disc in white
+     - Fovea marked with yellow X
+
+### Examples
+
+**Process a directory of images with all analyses:**
+```bash
+vascx run /path/to/images /path/to/output
+```
+
+**Process specific images listed in a CSV:**
+```bash
+vascx run /path/to/image_list.csv /path/to/output
+```
+
+**Only run preprocessing and vessel segmentation:**
+```bash
+vascx run /path/to/images /path/to/output --no-disc --no-quality --no-fovea --no-overlay
+```
+
+**Skip preprocessing on already preprocessed images:**
+```bash
+vascx run /path/to/preprocessed/images /path/to/output --no-preprocess
+```
+
+**Increase parallel processing workers:**
+```bash
+vascx run /path/to/images /path/to/output --n_jobs 8
+```
+
+### Notes
+
+- The CSV input must contain a 'path' column with image file paths
+- If the CSV includes an 'id' column, these IDs will be used instead of filenames
+- When `--no-preprocess` is used, input images must already be in the proper format
+- The overlay visualization requires at least one analysis component to be enabled
+
+### 
 
 To speed up re-execution of vascx we recommend to run the preprocessing and segmentation steps separately:
 

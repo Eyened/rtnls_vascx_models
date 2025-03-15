@@ -6,19 +6,15 @@ tags:
 - biology
 ---
 
-# VascX models
+# 👁️ VascX models
 
 This repository contains the instructions for using the VascX models from the paper [VascX Models: Model Ensembles for Retinal Vascular Analysis from Color Fundus Images](https://arxiv.org/abs/2409.16016).
 
 The model weights are in [huggingface](https://huggingface.co/Eyened/vascx).
 
-<img src="imgs/CHASEDB1_12R_rgb.png" width="240" height="240" style="display:inline"><img src="imgs/CHASEDB1_12R.png" width="240" height="240" style="display:inline">
+<img src="imgs/samples_vascx_hrf.png">
 
-<img src="imgs/DRIVE_22_rgb.png" width="240" height="240" style="display:inline"><img src="imgs/DRIVE_22.png" width="240" height="240" style="display:inline">
-
-<img src="imgs/HRF_04_g_rgb.png" width="240" height="240" style="display:inline"><img src="imgs/HRF_04_g.png" width="240" height="240" style="display:inline">
-
-## Installation
+## 🛠️ Installation
 
 To install the entire fundus analysis pipeline including fundus preprocessing, model inference code and vascular biomarker extraction:
 
@@ -27,7 +23,7 @@ To install the entire fundus analysis pipeline including fundus preprocessing, m
 2. Install the [rtnls_inference package](https://github.com/Eyened/retinalysis-inference).
 
 
-## `vascx run` Command
+## 🚀 `vascx run` Command
 
 The `run` command provides a comprehensive pipeline for processing fundus images, performing various analyses, and creating visualizations.
 
@@ -57,7 +53,7 @@ vascx run DATA_PATH OUTPUT_PATH [OPTIONS]
 | `--overlay/--no-overlay` | `--overlay` | Create visualization overlays combining all results |
 | `--n_jobs` | `4` | Number of preprocessing workers for parallel processing |
 
-### Output Structure
+### 📁 Output Structure
 
 When run with default options, the command creates the following structure in `OUTPUT_PATH`:
 
@@ -73,7 +69,7 @@ OUTPUT_PATH/
 └── fovea.csv             # Fovea coordinates
 ```
 
-### Processing Stages
+### 🔄 Processing Stages
 
 1. **Preprocessing**: 
    - Standardizes input images for consistent analysis
@@ -100,7 +96,7 @@ OUTPUT_PATH/
      - Optic disc in white
      - Fovea marked with yellow X
 
-### Examples
+### 💻 Examples
 
 **Process a directory of images with all analyses:**
 ```bash
@@ -127,14 +123,16 @@ vascx run /path/to/preprocessed/images /path/to/output --no-preprocess
 vascx run /path/to/images /path/to/output --n_jobs 8
 ```
 
-### Notes
+### 📝 Notes
 
 - The CSV input must contain a 'path' column with image file paths
 - If the CSV includes an 'id' column, these IDs will be used instead of filenames
 - When `--no-preprocess` is used, input images must already be in the proper format
 - The overlay visualization requires at least one analysis component to be enabled
 
-### 
+## 📓 Notebooks
+
+For more advanced usage, we have Jupyter notebooks showing how preprocessing and inference are run.
 
 To speed up re-execution of vascx we recommend to run the preprocessing and segmentation steps separately:
 

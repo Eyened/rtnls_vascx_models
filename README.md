@@ -20,8 +20,29 @@ To install the entire fundus analysis pipeline including fundus preprocessing, m
 
 1. Create a conda or virtualenv virtual environment, or otherwise ensure a clean environment.
 
-2. Install the [rtnls_inference package](https://github.com/Eyened/retinalysis-inference).
+2. Make sure that cuda and torchvision are available, or install them using your preferred method. For example:
 
+   ```
+   pip3 install torch torchvision torchaudio  # pip and CUDA 12
+   conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia # conda and CUDA 12
+   pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 # pip and CUDA 11
+   conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia # conda and CUDA 11
+   ```
+
+2. Install the [retinalysis-inference package](https://github.com/Eyened/retinalysis-inference).
+
+   ```
+   pip install retinalysis-fundusprep
+   pip install retinalysis-inference
+   ```
+
+3. Clone and install this repository:
+
+```
+git clone https://github.com/Eyened/rtnls_vascx_models.git -b github
+cd rtnls_vascx_models
+pip install -e .
+```
 
 ## 🚀 `vascx run` Command
 
@@ -130,7 +151,8 @@ vascx run /path/to/images /path/to/output --n_jobs 8
 - When `--no-preprocess` is used, input images must already be in the proper format
 - The overlay visualization requires at least one analysis component to be enabled
 
-## 📓 Notebooks
+## 📓 Notebooks <a id="notebooks"></a>
+
 
 For more advanced usage, we have Jupyter notebooks showing how preprocessing and inference are run.
 

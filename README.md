@@ -153,7 +153,6 @@ vascx run /path/to/images /path/to/output --n_jobs 8
 
 ## 📓 Notebooks <a id="notebooks"></a>
 
-
 For more advanced usage, we have Jupyter notebooks showing how preprocessing and inference are run.
 
 To speed up re-execution of vascx we recommend to run the preprocessing and segmentation steps separately:

@@ -25,7 +25,6 @@ def create_fundus_overlay(
     Returns:
         Numpy array containing the visualization image
     """
-    print(rgb_path, av_path, disc_path, fovea_location, output_path)
     # Load RGB image
     rgb_img = np.array(Image.open(rgb_path))
 

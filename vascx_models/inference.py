@@ -16,8 +16,16 @@ from rtnls_inference.ensembles.ensemble_segmentation import SegmentationEnsemble
 from rtnls_inference.utils import decollate_batch, extract_keypoints_from_heatmaps
 
 
-def run_quality_estimation(fpaths, ids, device: torch.device):
-    ensemble_quality = ClassificationEnsemble.from_release("quality.pt").to(device)
+def run_quality_estimation(
+    fpaths, ids, devices: Optional[List[int]], model="Eyened/vascx:quality/quality.pt"
+):
+    if devices is None:
+        devices = list(range(torch.cuda.device_count()))
+    device = torch.device(f"cuda:{devices[0]}" if torch.cuda.is_available() else "cpu")
+
+    ensemble_quality = ClassificationEnsemble.from_modelstring(model).to(device).eval()
+    ensemble_quality = torch.nn.DataParallel(ensemble_quality, device_ids=devices)
+
     dataloader = ensemble_quality._make_inference_dataloader(
         fpaths,
         ids=ids,
@@ -58,9 +66,9 @@ def run_segmentation_vessels_and_av(
     ids: Optional[List[str]] = None,
     av_path: Optional[Path] = None,
     vessels_path: Optional[Path] = None,
-    device: torch.device = torch.device(
-        "cuda:0" if torch.cuda.is_available() else "cpu"
-    ),
+    devices: Optional[List[int]] = None,
+    av_model="Eyened/vascx:artery_vein/av_july24.pt",
+    vessels_model="Eyened/vascx:vessels/vessels_july24.pt",
 ) -> None:
     """
     Run AV and vessel segmentation on the provided images.
@@ -73,6 +81,10 @@ def run_segmentation_vessels_and_av(
         vessels_path: Folder where to store output vessel segmentations
         device: Device to run inference on
     """
+    if devices is None:
+        devices = list(range(torch.cuda.device_count()))
+    device = torch.device(f"cuda:{devices[0]}" if torch.cuda.is_available() else "cpu")
+
     # Create output directories if they don't exist
     if av_path is not None:
         av_path.mkdir(exist_ok=True, parents=True)
@@ -80,10 +92,13 @@ def run_segmentation_vessels_and_av(
         vessels_path.mkdir(exist_ok=True, parents=True)
 
     # Load models
-    ensemble_av = SegmentationEnsemble.from_release("av_july24.pt").to(device).eval()
+    ensemble_av = SegmentationEnsemble.from_modelstring(av_model).to(device).eval()
     ensemble_vessels = (
-        SegmentationEnsemble.from_release("vessels_july24.pt").to(device).eval()
+        SegmentationEnsemble.from_modelstring(vessels_model).to(device).eval()
     )
+
+    ensemble_av = torch.nn.DataParallel(ensemble_av, device_ids=devices)
+    ensemble_vessels = torch.nn.DataParallel(ensemble_vessels, device_ids=devices)
 
     # Prepare input paths
     if ce_paths is None:
@@ -151,13 +166,15 @@ def run_segmentation_disc(
     ce_paths: Optional[List[Path]] = None,
     ids: Optional[List[str]] = None,
     output_path: Optional[Path] = None,
-    device: torch.device = torch.device(
-        "cuda:0" if torch.cuda.is_available() else "cpu"
-    ),
+    devices: Optional[List[int]] = None,
+    model="Eyened/vascx:disc/disc_july24.pt",
 ) -> None:
-    ensemble_disc = (
-        SegmentationEnsemble.from_release("disc_july24.pt").to(device).eval()
-    )
+    if devices is None:
+        devices = list(range(torch.cuda.device_count()))
+    device = torch.device(f"cuda:{devices[0]}" if torch.cuda.is_available() else "cpu")
+
+    ensemble_disc = SegmentationEnsemble.from_modelstring(model).to(device).eval()
+    ensemble_disc = torch.nn.DataParallel(ensemble_disc, device_ids=devices)
 
     # Prepare input paths
     if ce_paths is None:
@@ -204,14 +221,16 @@ def run_fovea_detection(
     rgb_paths: List[Path],
     ce_paths: Optional[List[Path]] = None,
     ids: Optional[List[str]] = None,
-    device: torch.device = torch.device(
-        "cuda:0" if torch.cuda.is_available() else "cpu"
-    ),
+    devices: Optional[List[int]] = None,
+    model="Eyened/vascx:fovea/fovea_july24.pt",
 ) -> None:
+    if devices is None:
+        devices = list(range(torch.cuda.device_count()))
+    device = torch.device(f"cuda:{devices[0]}" if torch.cuda.is_available() else "cpu")
+
     # def run_fovea_detection(fpaths, ids, device: torch.device):
-    ensemble_fovea = HeatmapRegressionEnsemble.from_release("fovea_july24.pt").to(
-        device
-    )
+    ensemble_fovea = HeatmapRegressionEnsemble.from_modelstring(model).to(device)
+    ensemble_fovea = torch.nn.DataParallel(ensemble_fovea, device_ids=devices)
 
     # Prepare input paths
     if ce_paths is None:

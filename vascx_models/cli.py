@@ -2,7 +2,6 @@ from pathlib import Path
 
 import click
 import pandas as pd
-import torch
 
 from rtnls_fundusprep.cli import _run_preprocessing
 
@@ -40,8 +39,46 @@ def cli():
     "--overlay/--no-overlay", default=True, help="Create visualization overlays"
 )
 @click.option("--n_jobs", type=int, default=4, help="Number of preprocessing workers")
+@click.option(
+    "--devices",
+    default=None,
+    help="Comma separated list of GPU ids to use (e.g., '0,1,2')",
+)
+@click.option(
+    "--vessels_model",
+    default="hf@Eyened/vascx:vessels/vessels_july24.pt",
+    help="Model to use for vessel segmentation",
+)
+@click.option(
+    "--disc_model",
+    default="hf@Eyened/vascx:disc/disc_july24.pt",
+    help="Model to use for disc segmentation",
+)
+@click.option(
+    "--quality_model",
+    default="hf@Eyened/vascx:quality/quality.pt",
+    help="Model to use for quality estimation",
+)
+@click.option(
+    "--fovea_model",
+    default="hf@Eyened/vascx:fovea/fovea_july24.pt",
+    help="Model to use for fovea detection",
+)
 def run(
-    data_path, output_path, preprocess, vessels, disc, quality, fovea, overlay, n_jobs
+    data_path,
+    output_path,
+    preprocess,
+    vessels,
+    disc,
+    quality,
+    fovea,
+    overlay,
+    n_jobs,
+    devices,
+    vessels_model,
+    disc_model,
+    quality_model,
+    fovea_model,
 ):
     """Run the complete inference pipeline on fundus images.
 
@@ -58,6 +95,12 @@ def run(
     av_path = output_path / "artery_vein"
     disc_path = output_path / "disc"
     overlay_path = output_path / "overlays"
+
+    # Parse devices option if provided
+    device_list = None
+    if devices:
+        device_list = [int(d.strip()) for d in devices.split(",")]
+        click.echo(f"Using GPUs: {device_list}")
 
     # Create required directories
     if preprocess:
@@ -128,15 +171,11 @@ def run(
         preprocessed_files = files
     ids = [f.stem for f in preprocessed_files]
 
-    # Set up GPU device
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    click.echo(f"Using device: {device}")
-
     # Step 2: Run quality estimation if requested
     if quality:
         click.echo("Running quality estimation...")
         df_quality = run_quality_estimation(
-            fpaths=preprocessed_files, ids=ids, device=device
+            fpaths=preprocessed_files, ids=ids, devices=device_list, model=quality_model
         )
         df_quality.to_csv(quality_path)
         click.echo(f"Quality results saved to {quality_path}")
@@ -149,7 +188,8 @@ def run(
             ids=ids,
             av_path=av_path,
             vessels_path=vessels_path,
-            device=device,
+            devices=device_list,
+            vessels_model=vessels_model,
         )
         click.echo(f"Vessel segmentation saved to {vessels_path}")
         click.echo(f"AV segmentation saved to {av_path}")
@@ -158,7 +198,11 @@ def run(
     if disc:
         click.echo("Running optic disc segmentation...")
         run_segmentation_disc(
-            rgb_paths=preprocessed_files, ids=ids, output_path=disc_path, device=device
+            rgb_paths=preprocessed_files,
+            ids=ids,
+            output_path=disc_path,
+            devices=device_list,
+            model=disc_model,
         )
         click.echo(f"Disc segmentation saved to {disc_path}")
 
@@ -167,7 +211,10 @@ def run(
     if fovea:
         click.echo("Running fovea detection...")
         df_fovea = run_fovea_detection(
-            rgb_paths=preprocessed_files, ids=ids, device=device
+            rgb_paths=preprocessed_files,
+            ids=ids,
+            devices=device_list,
+            model=fovea_model,
         )
         df_fovea.to_csv(fovea_path)
         click.echo(f"Fovea detection results saved to {fovea_path}")

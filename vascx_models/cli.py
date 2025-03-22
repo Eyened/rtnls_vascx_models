@@ -45,6 +45,11 @@ def cli():
     help="Comma separated list of GPU ids to use (e.g., '0,1,2')",
 )
 @click.option(
+    "--av_model",
+    default="hf@Eyened/vascx:artery_vein/av_july24.pt",
+    help="Model to use for artery-vein segmentation",
+)
+@click.option(
     "--vessels_model",
     default="hf@Eyened/vascx:vessels/vessels_july24.pt",
     help="Model to use for vessel segmentation",
@@ -75,6 +80,7 @@ def run(
     overlay,
     n_jobs,
     devices,
+    av_model,
     vessels_model,
     disc_model,
     quality_model,
@@ -189,6 +195,7 @@ def run(
             av_path=av_path,
             vessels_path=vessels_path,
             devices=device_list,
+            av_model=av_model,
             vessels_model=vessels_model,
         )
         click.echo(f"Vessel segmentation saved to {vessels_path}")

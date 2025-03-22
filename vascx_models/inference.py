@@ -17,7 +17,10 @@ from rtnls_inference.utils import decollate_batch, extract_keypoints_from_heatma
 
 
 def run_quality_estimation(
-    fpaths, ids, devices: Optional[List[int]], model="Eyened/vascx:quality/quality.pt"
+    fpaths,
+    ids,
+    devices: Optional[List[int]],
+    model="hf@Eyened/vascx:quality/quality.pt",
 ):
     if devices is None:
         devices = list(range(torch.cuda.device_count()))
@@ -26,7 +29,7 @@ def run_quality_estimation(
     ensemble_quality = ClassificationEnsemble.from_modelstring(model).to(device).eval()
     ensemble_quality = torch.nn.DataParallel(ensemble_quality, device_ids=devices)
 
-    dataloader = ensemble_quality._make_inference_dataloader(
+    dataloader = ensemble_quality.module._make_inference_dataloader(
         fpaths,
         ids=ids,
         num_workers=8,
@@ -43,7 +46,7 @@ def run_quality_estimation(
             im = batch["image"].to(device)
 
             # QUALITY
-            quality = ensemble_quality.predict_step(im)
+            quality = ensemble_quality.module.predict_step(im)
             quality = torch.mean(quality, dim=0)
 
             items = {"id": batch["id"], "quality": quality}
@@ -67,8 +70,8 @@ def run_segmentation_vessels_and_av(
     av_path: Optional[Path] = None,
     vessels_path: Optional[Path] = None,
     devices: Optional[List[int]] = None,
-    av_model="Eyened/vascx:artery_vein/av_july24.pt",
-    vessels_model="Eyened/vascx:vessels/vessels_july24.pt",
+    av_model="hf@Eyened/vascx:artery_vein/av_july24.pt",
+    vessels_model="hf@Eyened/vascx:vessels/vessels_july24.pt",
 ) -> None:
     """
     Run AV and vessel segmentation on the provided images.
@@ -111,7 +114,7 @@ def run_segmentation_vessels_and_av(
         fpaths = list(zip(rgb_paths, ce_paths))
 
     # Create dataloader
-    dataloader = ensemble_av._make_inference_dataloader(
+    dataloader = ensemble_av.module._make_inference_dataloader(
         fpaths,
         ids=ids,
         num_workers=8,
@@ -125,8 +128,8 @@ def run_segmentation_vessels_and_av(
             # AV segmentation
             if av_path is not None:
                 with torch.autocast(device_type=device.type):
-                    proba = ensemble_av.forward(batch["image"].to(device))
-                proba = torch.mean(proba, dim=0)  # average over models
+                    proba = ensemble_av(batch["image"].to(device))  # NMCHW
+                proba = torch.mean(proba, dim=1)  # average over models
                 proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
                 proba = torch.nn.functional.softmax(proba, dim=-1)
 
@@ -144,8 +147,8 @@ def run_segmentation_vessels_and_av(
             # Vessel segmentation
             if vessels_path is not None:
                 with torch.autocast(device_type=device.type):
-                    proba = ensemble_vessels.forward(batch["image"].to(device))
-                proba = torch.mean(proba, dim=0)  # average over models
+                    proba = ensemble_vessels.forward(batch["image"].to(device))  # NMCHW
+                proba = torch.mean(proba, dim=1)  # average over models
                 proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
                 proba = torch.nn.functional.softmax(proba, dim=-1)
 
@@ -167,7 +170,7 @@ def run_segmentation_disc(
     ids: Optional[List[str]] = None,
     output_path: Optional[Path] = None,
     devices: Optional[List[int]] = None,
-    model="Eyened/vascx:disc/disc_july24.pt",
+    model="hf@Eyened/vascx:disc/disc_july24.pt",
 ) -> None:
     if devices is None:
         devices = list(range(torch.cuda.device_count()))
@@ -186,7 +189,7 @@ def run_segmentation_disc(
             raise ValueError("rgb_paths and ce_paths must have the same length")
         fpaths = list(zip(rgb_paths, ce_paths))
 
-    dataloader = ensemble_disc._make_inference_dataloader(
+    dataloader = ensemble_disc.module._make_inference_dataloader(
         fpaths,
         ids=ids,
         num_workers=8,
@@ -198,8 +201,8 @@ def run_segmentation_disc(
         for batch in tqdm(dataloader):
             # AV
             with torch.autocast(device_type=device.type):
-                proba = ensemble_disc.forward(batch["image"].to(device))
-            proba = torch.mean(proba, dim=0)  # average over models
+                proba = ensemble_disc.forward(batch["image"].to(device))  # NMCHW
+            proba = torch.mean(proba, dim=1)  # average over models
             proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
             proba = torch.nn.functional.softmax(proba, dim=-1)
 
@@ -222,7 +225,7 @@ def run_fovea_detection(
     ce_paths: Optional[List[Path]] = None,
     ids: Optional[List[str]] = None,
     devices: Optional[List[int]] = None,
-    model="Eyened/vascx:fovea/fovea_july24.pt",
+    model="hf@Eyened/vascx:fovea/fovea_july24.pt",
 ) -> None:
     if devices is None:
         devices = list(range(torch.cuda.device_count()))
@@ -242,7 +245,7 @@ def run_fovea_detection(
             raise ValueError("rgb_paths and ce_paths must have the same length")
         fpaths = list(zip(rgb_paths, ce_paths))
 
-    dataloader = ensemble_fovea._make_inference_dataloader(
+    dataloader = ensemble_fovea.module._make_inference_dataloader(
         fpaths,
         ids=ids,
         num_workers=8,
@@ -260,10 +263,10 @@ def run_fovea_detection(
 
             # FOVEA DETECTION
             with torch.autocast(device_type=device.type):
-                heatmap = ensemble_fovea.forward(im)
-            keypoints = extract_keypoints_from_heatmaps(heatmap)
+                heatmap = ensemble_fovea.forward(im)  # NMCHW
+            keypoints = extract_keypoints_from_heatmaps(heatmap)  # NMC2
 
-            kp_fovea = torch.mean(keypoints, dim=0)  # average over models
+            kp_fovea = torch.mean(keypoints, dim=1)  # average over models
 
             items = {
                 "id": batch["id"],

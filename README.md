@@ -64,6 +64,8 @@ vascx run DATA_PATH OUTPUT_PATH [OPTIONS]
 
 ### Options
 
+### Options
+
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--preprocess/--no-preprocess` | `--preprocess` | Run preprocessing to standardize images for model input |
@@ -73,6 +75,30 @@ vascx run DATA_PATH OUTPUT_PATH [OPTIONS]
 | `--fovea/--no-fovea` | `--fovea` | Run fovea detection |
 | `--overlay/--no-overlay` | `--overlay` | Create visualization overlays combining all results |
 | `--n_jobs` | `4` | Number of preprocessing workers for parallel processing |
+| `--devices` | None | Comma separated list of GPU ids to use (e.g., '0,1,2') |
+| `--av_model` | `"hf@Eyened/vascx:artery_vein/av_july24.pt"` | Model to use for artery-vein segmentation |
+| `--vessels_model` | `"hf@Eyened/vascx:vessels/vessels_july24.pt"` | Model to use for vessel segmentation |
+| `--disc_model` | `"hf@Eyened/vascx:disc/disc_july24.pt"` | Model to use for disc segmentation |
+| `--quality_model` | `"hf@Eyened/vascx:quality/quality.pt"` | Model to use for quality estimation |
+| `--fovea_model` | `"hf@Eyened/vascx:fovea/fovea_july24.pt"` | Model to use for fovea detection |
+
+### 🧠 Model Weights
+
+By default, model weights are automatically downloaded from the [Eyened/vascx](https://huggingface.co/Eyened/vascx/tree/main) Hugging Face repository when you first run the command. In addition to the default weights, we made available model weights with one dataset left out, meant for benchmarking and reproduction of the results in our paper. For example see [artery_vein weights](https://huggingface.co/Eyened/vascx/tree/main/artery_vein), where `av_july24_RS.pt` are the artery-vein segmentation weights trained without the Rotterdam Study set. To run using these weights specify `--av_model hf@Eyened/vascx:artery_vein/av_july24_RS.pt`.
+
+You can also use local model weights by specifying an absolute path model files. For detailed instructions refer to the [retinalysis-inference repository](https://github.com/Eyened/retinalysis-inference).
+
+### 🖥️ GPU Utilization
+
+Use the `--devices` option to specify which GPUs to use for inference:
+
+```bash
+# Use GPU 0
+vascx run /path/to/images /path/to/output --devices 0
+
+# Use multiple GPUs
+vascx run /path/to/images /path/to/output --devices 0,1,2
+```
 
 ### 📁 Output Structure
 

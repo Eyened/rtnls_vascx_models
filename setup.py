@@ -23,10 +23,10 @@ setup(
         ]
     },
     install_requires=[
-        "numpy == 1.*",
+        "numpy == 2.*",
         "pandas == 2.*",
         "tqdm == 4.*",
-        "Pillow == 9.*",
+        "Pillow == 11.*",
         "click==8.*",
     ],
     python_requires=">=3.10, <3.11",

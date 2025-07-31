@@ -10,7 +10,7 @@ tags:
 
 This repository contains the instructions for using the VascX models from the paper [VascX Models: Model Ensembles for Retinal Vascular Analysis from Color Fundus Images](https://arxiv.org/abs/2409.16016).
 
-The model weights are in [huggingface](https://huggingface.co/Eyened/vascx).
+The model weights are in [huggingface](https://huggingface.co/Eyened/vascx) but will be downloaded automatically (see instructions below).
 
 <img src="imgs/samples_vascx_hrf.png">
 
@@ -46,7 +46,7 @@ pip install -e .
 
 ## 🚀 `vascx run` Command
 
-The `run` command provides a comprehensive pipeline for processing fundus images, performing various analyses, and creating visualizations.
+The `run` command is the most simple way to run the VascX models on locally-accessible images by providing a folder path or a list of files.
 
 ### Usage
 

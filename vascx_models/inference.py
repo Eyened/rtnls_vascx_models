@@ -111,7 +111,7 @@ def run_segmentation_vessels_and_av(
             if av_path is not None:
                 with torch.autocast(device_type=device.type):
                     proba = ensemble_av.forward(batch["image"].to(device))
-                proba = torch.mean(proba, dim=0)  # average over models
+                proba = torch.mean(proba, dim=1)  # average over models
                 proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
                 proba = torch.nn.functional.softmax(proba, dim=-1)
 
@@ -130,7 +130,7 @@ def run_segmentation_vessels_and_av(
             if vessels_path is not None:
                 with torch.autocast(device_type=device.type):
                     proba = ensemble_vessels.forward(batch["image"].to(device))
-                proba = torch.mean(proba, dim=0)  # average over models
+                proba = torch.mean(proba, dim=1)  # average over models
                 proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
                 proba = torch.nn.functional.softmax(proba, dim=-1)
 
@@ -182,7 +182,7 @@ def run_segmentation_disc(
             # AV
             with torch.autocast(device_type=device.type):
                 proba = ensemble_disc.forward(batch["image"].to(device))
-            proba = torch.mean(proba, dim=0)  # average over models
+            proba = torch.mean(proba, dim=1)  # average over models
             proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
             proba = torch.nn.functional.softmax(proba, dim=-1)
 

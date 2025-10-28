@@ -244,7 +244,7 @@ def run_fovea_detection(
                 heatmap = ensemble_fovea.forward(im)
             keypoints = extract_keypoints_from_heatmaps(heatmap)
 
-            kp_fovea = torch.mean(keypoints, dim=0)  # average over models
+            kp_fovea = torch.mean(keypoints, dim=1)  # average over models
 
             items = {
                 "id": batch["id"],

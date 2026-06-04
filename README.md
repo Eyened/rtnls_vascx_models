@@ -6,6 +6,11 @@ tags:
 - biology
 ---
 
+> [!IMPORTANT]
+> The entire VascX pipeline, including feature extraction is available here: [retinalysis-vascx](https://github.com/eyened/retinalysis-vascx
+> A new preprint presenting the pipeline is [available here](https://arxiv.org/abs/2602.08580)
+> We will stop supporting this repository and move the new one linked above. We will keep updating the models and pipeline there.
+
 # 👁️ VascX models
 
 This repository contains the instructions for using the VascX models from the paper [VascX Models: Model Ensembles for Retinal Vascular Analysis from Color Fundus Images](https://arxiv.org/abs/2409.16016).

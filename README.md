@@ -7,7 +7,7 @@ tags:
 ---
 
 > [!IMPORTANT]
-> The entire VascX pipeline, including feature extraction is available here: [retinalysis-vascx](https://github.com/eyened/retinalysis-vascx). A new preprint presenting the pipeline is [available here](https://arxiv.org/abs/2602.08580). We will stop supporting this repository and move the new one linked above. We will keep updating the models and pipeline there.
+> The entire VascX pipeline, including feature extraction is available here: [retinalysis-vascx](https://github.com/eyened/retinalysis-vascx). A new preprint presenting the pipeline is [available here](https://arxiv.org/abs/2602.08580). We will stop supporting this repository and move to the new one linked above. We will keep updating the models and pipeline there.
 
 # 👁️ VascX models
 

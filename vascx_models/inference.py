@@ -1,55 +1,171 @@
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
-from tqdm import tqdm
-
+from rtnls_inference.dtos_inference import ModelInputDTO
 from rtnls_inference.ensembles.ensemble_classification import ClassificationEnsemble
 from rtnls_inference.ensembles.ensemble_heatmap_regression import (
     HeatmapRegressionEnsemble,
 )
 from rtnls_inference.ensembles.ensemble_segmentation import SegmentationEnsemble
-from rtnls_inference.utils import decollate_batch, extract_keypoints_from_heatmaps
+from tqdm import tqdm
 
 
-def run_quality_estimation(fpaths, ids, device: torch.device):
-    ensemble_quality = ClassificationEnsemble.from_release("quality.pt").to(device)
+def _create_dtos(
+    rgb_paths: List[Path],
+    ce_paths: Optional[List[Path]] = None,
+    ids: Optional[List[str]] = None,
+) -> List[ModelInputDTO]:
+    """Helper to create ModelInputDTOs from paths."""
+    if ids is None:
+        ids = [p.stem for p in rgb_paths]
+
+    if ce_paths is None:
+        ce_paths = [None] * len(rgb_paths)
+
+    if len(rgb_paths) != len(ce_paths):
+        raise ValueError("rgb_paths and ce_paths must have the same length")
+
+    if len(rgb_paths) != len(ids):
+        raise ValueError("rgb_paths and ids must have the same length")
+
+    return [
+        ModelInputDTO(
+            id=str(id_val),
+            image=str(rgb_path),
+            contrast_enhanced=str(ce_path) if ce_path else None,
+        )
+        for id_val, rgb_path, ce_path in zip(ids, rgb_paths, ce_paths)
+    ]
+
+
+def iterate_quality_estimation(
+    data: List[ModelInputDTO],
+    device: torch.device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "cpu"
+    ),
+) -> Iterator[Dict[str, Any]]:
+    """Yield quality ensemble inference items."""
+    ensemble_quality = ClassificationEnsemble.from_huggingface(
+        "Eyened/vascx:quality/quality.pt"
+    ).to(device)
+
+    inputs = {"images": [item.to_serialized_dict() for item in data]}
     dataloader = ensemble_quality._make_inference_dataloader(
-        fpaths,
-        ids=ids,
+        inputs,
         num_workers=8,
         preprocess=False,
         batch_size=16,
     )
 
-    output_ids, outputs = [], []
     with torch.no_grad():
         for batch in tqdm(dataloader):
             if len(batch) == 0:
                 continue
 
-            im = batch["image"].to(device)
-
-            # QUALITY
-            quality = ensemble_quality.predict_step(im)
-            quality = torch.mean(quality, dim=0)
-
-            items = {"id": batch["id"], "quality": quality}
-            items = decollate_batch(items)
+            items = ensemble_quality._predict_batch(batch)
 
             for item in items:
-                output_ids.append(item["id"])
-                outputs.append(item["quality"].tolist())
+                yield item
+
+
+def run_quality_estimation(
+    fpaths,
+    ids: Optional[List[str]] = None,
+    device: torch.device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "cpu"
+    ),
+):
+    data = _create_dtos(fpaths, ids=ids)
+    output_ids, outputs = [], []
+
+    for item in iterate_quality_estimation(data, device=device):
+        output_ids.append(item["id"])
+        outputs.append(item["logits"].tolist())
 
     return pd.DataFrame(
         outputs,
         index=output_ids,
         columns=["q1", "q2", "q3"],
     )
+
+
+def iterate_segmentation_vessels_and_av(
+    data: List[ModelInputDTO],
+    device: torch.device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "cpu"
+    ),
+    predict_av: bool = True,
+    predict_vessels: bool = True,
+) -> Iterator[Dict[str, Any]]:
+    """Yield raw segmentation items for AV and vessels."""
+    if not predict_av and not predict_vessels:
+        return
+
+    ensemble_av = (
+        # SegmentationEnsemble.from_huggingface("Eyened/vascx:artery_vein/av_july24.pt")
+        SegmentationEnsemble.from_huggingface("Eyened/vascx:artery_vein/av_july24_2.pt")
+        .to(device)
+        .eval()
+        if predict_av
+        else None
+    )
+    ensemble_vessels = (
+        SegmentationEnsemble.from_huggingface("Eyened/vascx:vessels/vessels_july24.pt")
+        .to(device)
+        .eval()
+        if predict_vessels
+        else None
+    )
+    reference_ensemble = ensemble_av or ensemble_vessels
+    if reference_ensemble is None:
+        return
+
+    inputs = {"images": [item.to_serialized_dict() for item in data]}
+    dataloader = reference_ensemble._make_inference_dataloader(
+        inputs,
+        num_workers=16,
+        preprocess=False,
+        batch_size=16,
+    )
+
+    with torch.no_grad():
+        for batch in tqdm(dataloader):
+            if len(batch) == 0:
+                continue
+
+            items_av = ensemble_av._predict_batch(batch) if ensemble_av else None
+            items_vessels = (
+                ensemble_vessels._predict_batch(batch) if ensemble_vessels else None
+            )
+
+            num_items = (
+                len(items_av)
+                if items_av is not None
+                else len(items_vessels)
+                if items_vessels is not None
+                else 0
+            )
+
+            for idx in range(num_items):
+                av_item = items_av[idx] if items_av is not None else None
+                vessel_item = items_vessels[idx] if items_vessels is not None else None
+
+                yield {
+                    "id": (
+                        av_item["id"]
+                        if av_item is not None
+                        else vessel_item["id"]
+                        if vessel_item is not None
+                        else None
+                    ),
+                    "av": av_item,
+                    "vessels": vessel_item,
+                }
 
 
 def run_segmentation_vessels_and_av(
@@ -61,6 +177,9 @@ def run_segmentation_vessels_and_av(
     device: torch.device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
     ),
+    callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    predict_av: bool = False,
+    predict_vessels: bool = False,
 ) -> None:
     """
     Run AV and vessel segmentation on the provided images.
@@ -72,78 +191,71 @@ def run_segmentation_vessels_and_av(
         av_path: Folder where to store output AV segmentations
         vessels_path: Folder where to store output vessel segmentations
         device: Device to run inference on
+        callback: Optional callback to process results instead of saving them
+        predict_av: Whether to predict AV segmentation (default False, overriden by av_path)
+        predict_vessels: Whether to predict vessel segmentation (default False, overriden by vessels_path)
     """
-    # Create output directories if they don't exist
     if av_path is not None:
         av_path.mkdir(exist_ok=True, parents=True)
     if vessels_path is not None:
         vessels_path.mkdir(exist_ok=True, parents=True)
 
-    # Load models
-    ensemble_av = SegmentationEnsemble.from_release("av_july24.pt").to(device).eval()
-    ensemble_vessels = (
-        SegmentationEnsemble.from_release("vessels_july24.pt").to(device).eval()
+    should_predict_av = (av_path is not None) or predict_av
+    should_predict_vessels = (vessels_path is not None) or predict_vessels
+
+    data = _create_dtos(rgb_paths, ce_paths=ce_paths, ids=ids)
+
+    for result in iterate_segmentation_vessels_and_av(
+        data,
+        device=device,
+        predict_av=should_predict_av,
+        predict_vessels=should_predict_vessels,
+    ):
+        if callback is not None:
+            callback(result)
+        else:
+            if av_path is not None and result["av"] is not None:
+                fpath = os.path.join(av_path, f"{result['id']}.png")
+                mask = np.argmax(result["av"]["image"], -1)
+                Image.fromarray(mask.squeeze().astype(np.uint8)).save(fpath)
+
+            if vessels_path is not None and result["vessels"] is not None:
+                fpath = os.path.join(vessels_path, f"{result['id']}.png")
+                mask = np.argmax(result["vessels"]["image"], -1)
+                Image.fromarray(mask.squeeze().astype(np.uint8)).save(fpath)
+
+
+def iterate_segmentation_disc(
+    data: List[ModelInputDTO],
+    device: torch.device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "cpu"
+    ),
+) -> Iterator[Dict[str, Any]]:
+    """Yield disc segmentation inference items."""
+    ensemble_disc = (
+        SegmentationEnsemble.from_huggingface("Eyened/vascx:disc/disc_july24.pt")
+        .to(device)
+        .eval()
     )
 
-    # Prepare input paths
-    if ce_paths is None:
-        # If CE paths are not provided, use RGB paths for both inputs
-        fpaths = rgb_paths
-    else:
-        # If CE paths are provided, pair them with RGB paths
-        if len(rgb_paths) != len(ce_paths):
-            raise ValueError("rgb_paths and ce_paths must have the same length")
-        fpaths = list(zip(rgb_paths, ce_paths))
-
-    # Create dataloader
-    dataloader = ensemble_av._make_inference_dataloader(
-        fpaths,
-        ids=ids,
-        num_workers=8,
+    inputs = {"images": [item.to_serialized_dict() for item in data]}
+    dataloader = ensemble_disc._make_inference_dataloader(
+        inputs,
+        num_workers=16,
         preprocess=False,
-        batch_size=8,
+        batch_size=32,
     )
 
-    # Run inference
     with torch.no_grad():
         for batch in tqdm(dataloader):
-            # AV segmentation
-            if av_path is not None:
-                with torch.autocast(device_type=device.type):
-                    proba = ensemble_av.forward(batch["image"].to(device))
-                proba = torch.mean(proba, dim=1)  # average over models
-                proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
-                proba = torch.nn.functional.softmax(proba, dim=-1)
+            if len(batch) == 0:
+                continue
 
-                items = {
-                    "id": batch["id"],
-                    "image": proba,
-                }
+            items = ensemble_disc._predict_batch(batch)
+            items = [dataloader.dataset.transform.undo_item(item) for item in items]
 
-                items = decollate_batch(items)
-                for i, item in enumerate(items):
-                    fpath = os.path.join(av_path, f"{item['id']}.png")
-                    mask = np.argmax(item["image"], -1)
-                    Image.fromarray(mask.squeeze().astype(np.uint8)).save(fpath)
-
-            # Vessel segmentation
-            if vessels_path is not None:
-                with torch.autocast(device_type=device.type):
-                    proba = ensemble_vessels.forward(batch["image"].to(device))
-                proba = torch.mean(proba, dim=1)  # average over models
-                proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
-                proba = torch.nn.functional.softmax(proba, dim=-1)
-
-                items = {
-                    "id": batch["id"],
-                    "image": proba,
-                }
-
-                items = decollate_batch(items)
-                for i, item in enumerate(items):
-                    fpath = os.path.join(vessels_path, f"{item['id']}.png")
-                    mask = np.argmax(item["image"], -1)
-                    Image.fromarray(mask.squeeze().astype(np.uint8)).save(fpath)
+            for item in items:
+                yield item
 
 
 def run_segmentation_disc(
@@ -154,24 +266,41 @@ def run_segmentation_disc(
     device: torch.device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
     ),
+    callback: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> None:
-    ensemble_disc = (
-        SegmentationEnsemble.from_release("disc_july24.pt").to(device).eval()
-    )
+    if output_path is None and callback is None:
+        raise ValueError(
+            "Either output_path or callback must be provided for disc segmentation"
+        )
 
-    # Prepare input paths
-    if ce_paths is None:
-        # If CE paths are not provided, use RGB paths for both inputs
-        fpaths = rgb_paths
-    else:
-        # If CE paths are provided, pair them with RGB paths
-        if len(rgb_paths) != len(ce_paths):
-            raise ValueError("rgb_paths and ce_paths must have the same length")
-        fpaths = list(zip(rgb_paths, ce_paths))
+    if output_path is not None:
+        output_path.mkdir(exist_ok=True, parents=True)
 
-    dataloader = ensemble_disc._make_inference_dataloader(
-        fpaths,
-        ids=ids,
+    data = _create_dtos(rgb_paths, ce_paths=ce_paths, ids=ids)
+
+    for item in iterate_segmentation_disc(data, device=device):
+        if callback is not None:
+            callback(item)
+        elif output_path is not None:
+            fpath = os.path.join(output_path, f"{item['id']}.png")
+            mask = np.argmax(item["image"], -1)
+            Image.fromarray(mask.squeeze().astype(np.uint8)).save(fpath)
+
+
+def iterate_fovea_detection(
+    data: List[ModelInputDTO],
+    device: torch.device = torch.device(
+        "cuda:0" if torch.cuda.is_available() else "cpu"
+    ),
+) -> Iterator[Dict[str, Any]]:
+    """Yield fovea detection inference items."""
+    ensemble_fovea = HeatmapRegressionEnsemble.from_huggingface(
+        "Eyened/vascx:fovea/fovea_july24.pt"
+    ).to(device)
+
+    inputs = {"images": [item.to_serialized_dict() for item in data]}
+    dataloader = ensemble_fovea._make_inference_dataloader(
+        inputs,
         num_workers=8,
         preprocess=False,
         batch_size=8,
@@ -179,25 +308,14 @@ def run_segmentation_disc(
 
     with torch.no_grad():
         for batch in tqdm(dataloader):
-            # AV
-            with torch.autocast(device_type=device.type):
-                proba = ensemble_disc.forward(batch["image"].to(device))
-            proba = torch.mean(proba, dim=1)  # average over models
-            proba = torch.permute(proba, (0, 2, 3, 1))  # NCHW -> NHWC
-            proba = torch.nn.functional.softmax(proba, dim=-1)
+            if len(batch) == 0:
+                continue
 
-            items = {
-                "id": batch["id"],
-                "image": proba,
-            }
-
-            items = decollate_batch(items)
+            items = ensemble_fovea._predict_batch(batch)
             items = [dataloader.dataset.transform.undo_item(item) for item in items]
-            for i, item in enumerate(items):
-                fpath = os.path.join(output_path, f"{item['id']}.png")
 
-                mask = np.argmax(item["image"], -1)
-                Image.fromarray(mask.squeeze().astype(np.uint8)).save(fpath)
+            for item in items:
+                yield item
 
 
 def run_fovea_detection(
@@ -207,61 +325,18 @@ def run_fovea_detection(
     device: torch.device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
     ),
-) -> None:
-    # def run_fovea_detection(fpaths, ids, device: torch.device):
-    ensemble_fovea = HeatmapRegressionEnsemble.from_release("fovea_july24.pt").to(
-        device
-    )
-
-    # Prepare input paths
-    if ce_paths is None:
-        # If CE paths are not provided, use RGB paths for both inputs
-        fpaths = rgb_paths
-    else:
-        # If CE paths are provided, pair them with RGB paths
-        if len(rgb_paths) != len(ce_paths):
-            raise ValueError("rgb_paths and ce_paths must have the same length")
-        fpaths = list(zip(rgb_paths, ce_paths))
-
-    dataloader = ensemble_fovea._make_inference_dataloader(
-        fpaths,
-        ids=ids,
-        num_workers=8,
-        preprocess=False,
-        batch_size=8,
-    )
-
+) -> pd.DataFrame:
+    data = _create_dtos(rgb_paths, ce_paths=ce_paths, ids=ids)
     output_ids, outputs = [], []
-    with torch.no_grad():
-        for batch in tqdm(dataloader):
-            if len(batch) == 0:
-                continue
 
-            im = batch["image"].to(device)
+    for item in iterate_fovea_detection(data, device=device):
+        output_ids.append(item["id"])
+        outputs.append(
+            [
+                *item["keypoints"][0].tolist(),
+            ]
+        )
 
-            # FOVEA DETECTION
-            with torch.autocast(device_type=device.type):
-                heatmap = ensemble_fovea.forward(im)
-            keypoints = extract_keypoints_from_heatmaps(heatmap)
-
-            kp_fovea = torch.mean(keypoints, dim=1)  # average over models
-
-            items = {
-                "id": batch["id"],
-                "keypoints": kp_fovea,
-                "metadata": batch["metadata"],
-            }
-            items = decollate_batch(items)
-
-            items = [dataloader.dataset.transform.undo_item(item) for item in items]
-
-            for item in items:
-                output_ids.append(item["id"])
-                outputs.append(
-                    [
-                        *item["keypoints"][0].tolist(),
-                    ]
-                )
     return pd.DataFrame(
         outputs,
         index=output_ids,

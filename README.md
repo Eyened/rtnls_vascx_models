@@ -4,6 +4,8 @@ pipeline_tag: image-segmentation
 tags:
 - medical
 - biology
+- ophthalmology
+- retina
 ---
 
 > [!IMPORTANT]
@@ -11,134 +13,22 @@ tags:
 
 # 👁️ VascX models
 
-This repository contains the instructions for using the VascX models from the paper [VascX Models: Model Ensembles for Retinal Vascular Analysis from Color Fundus Images](https://arxiv.org/abs/2409.16016).
+This repository contains model weights and model cards for the VascX models from the paper [VascX Models: Model Ensembles for Retinal Vascular Analysis from Color Fundus Images](https://arxiv.org/abs/2409.16016).
+
+The legacy `vascx_models` Python package and CLI have been removed. For inference and the complete analysis pipeline, use [retinalysis-vascx](https://github.com/eyened/retinalysis-vascx).
 
 The model weights are in [huggingface](https://huggingface.co/Eyened/vascx).
 
 <img src="imgs/samples_vascx_hrf.png">
 
-## 🛠️ Installation
+## Model cards
 
-To install the entire fundus analysis pipeline including fundus preprocessing, model inference code and vascular biomarker extraction:
+Please see the model card for each model for details about its training procedure, datasets and ciations. For example:
+- [Artery-vein](artery_vein/av_july24.md)
+- [Optic disc](disc/disc_july24.md)
+- [Fovea detection](fovea/fovea_july24.md)
+- [Quality estimation](quality/quality.md)
 
-1. Create a conda or virtualenv virtual environment, or otherwise ensure a clean environment.
+## Licensing
 
-2. Install the [rtnls_inference package](https://github.com/Eyened/retinalysis-inference).
-
-
-## 🚀 `vascx run` Command
-
-The `run` command provides a comprehensive pipeline for processing fundus images, performing various analyses, and creating visualizations.
-
-### Usage
-
-```bash
-vascx run DATA_PATH OUTPUT_PATH [OPTIONS]
-```
-
-### Arguments
-
-- `DATA_PATH`: Path to input data. Can be either:
-  - A directory containing fundus images
-  - A CSV file with a 'path' column containing paths to images
-
-- `OUTPUT_PATH`: Directory where processed results will be stored
-
-### Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--preprocess/--no-preprocess` | `--preprocess` | Run preprocessing to standardize images for model input |
-| `--vessels/--no-vessels` | `--vessels` | Run vessel segmentation and artery-vein classification |
-| `--disc/--no-disc` | `--disc` | Run optic disc segmentation |
-| `--quality/--no-quality` | `--quality` | Run image quality assessment |
-| `--fovea/--no-fovea` | `--fovea` | Run fovea detection |
-| `--overlay/--no-overlay` | `--overlay` | Create visualization overlays combining all results |
-| `--n_jobs` | `4` | Number of preprocessing workers for parallel processing |
-
-### 📁 Output Structure
-
-When run with default options, the command creates the following structure in `OUTPUT_PATH`:
-
-```
-OUTPUT_PATH/
-├── preprocessed_rgb/     # Standardized fundus images
-├── vessels/              # Vessel segmentation results
-├── artery_vein/          # Artery-vein classification
-├── disc/                 # Optic disc segmentation
-├── overlays/             # Visualization images
-├── bounds.csv            # Image boundary information
-├── quality.csv           # Image quality scores
-└── fovea.csv             # Fovea coordinates
-```
-
-### 🔄 Processing Stages
-
-1. **Preprocessing**: 
-   - Standardizes input images for consistent analysis
-   - Outputs preprocessed images and boundary information
-
-2. **Quality Assessment**:
-   - Evaluates image quality with three quality metrics (q1, q2, q3)
-   - Higher scores indicate better image quality
-
-3. **Vessel Segmentation and Artery-Vein Classification**:
-   - Identifies blood vessels in the retina
-   - Classifies vessels as arteries (1) or veins (2) with intersections (3)
-
-4. **Optic Disc Segmentation**:
-   - Identifies the optic disc location and boundaries
-
-5. **Fovea Detection**:
-   - Determines the coordinates of the fovea (center of vision)
-
-6. **Visualization Overlays**:
-   - Creates color-coded images showing:
-     - Arteries in red
-     - Veins in blue
-     - Optic disc in white
-     - Fovea marked with yellow X
-
-### 💻 Examples
-
-**Process a directory of images with all analyses:**
-```bash
-vascx run /path/to/images /path/to/output
-```
-
-**Process specific images listed in a CSV:**
-```bash
-vascx run /path/to/image_list.csv /path/to/output
-```
-
-**Only run preprocessing and vessel segmentation:**
-```bash
-vascx run /path/to/images /path/to/output --no-disc --no-quality --no-fovea --no-overlay
-```
-
-**Skip preprocessing on already preprocessed images:**
-```bash
-vascx run /path/to/preprocessed/images /path/to/output --no-preprocess
-```
-
-**Increase parallel processing workers:**
-```bash
-vascx run /path/to/images /path/to/output --n_jobs 8
-```
-
-### 📝 Notes
-
-- The CSV input must contain a 'path' column with image file paths
-- If the CSV includes an 'id' column, these IDs will be used instead of filenames
-- When `--no-preprocess` is used, input images must already be in the proper format
-- The overlay visualization requires at least one analysis component to be enabled
-
-## 📓 Notebooks
-
-For more advanced usage, we have Jupyter notebooks showing how preprocessing and inference are run.
-
-To speed up re-execution of vascx we recommend to run the preprocessing and segmentation steps separately:
-
-1. Preprocessing. See [this notebook](./notebooks/0_preprocess.ipynb). This step is CPU-heavy and benefits from parallelization (see notebook).
-
-2. Inference. See [this notebook](./notebooks/1_segment_preprocessed.ipynb). All models can be ran in a single GPU with >10GB VRAM.
+We share the models under a Creative Commons Attribution–NonCommercial 4.0 license. We note that some of the datasets used for training and evaluating the model ensembles were made publicly available for research purposes only. We encourage due diligence for any applications with potential for commercial use.
